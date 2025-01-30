@@ -1,59 +1,78 @@
-from PIL import Image, ImageDraw, ImageFont, ImageOps
 import os
-import math
-
-def calculate_grid(num_images):
-    # Вычисляет оптимальное количество столбцов и строк для сетки.
-    side = int(math.ceil(math.sqrt(num_images)))
-    return side, math.ceil(num_images / side)
-
-def center_text(draw, text, font, width, height, padding=10):
-    # Центрирует текст в заданной области.
-    text_width, text_height = draw.textsize(text, font=font)
-    x = (width - text_width) // 2
-    y = (height - text_height) // 2 + padding
-    return x, y
+from PIL import Image, ImageDraw, ImageFont, ImageOps
+from tkinter import Tk
+from tkinter.filedialog import askdirectory, askopenfilenames
 
 
+def create_collage(images, output_file, title_text, cell_size=200, border_size=10):
+    if not images:
+        print("Ошибка: Не выбраны изображения.")
+        return
 
-def create_collage(image_dir, output_filename, title_text):
-    # проверка существования папки и изображений 
-
-    cell_size = 200
-    border_width = 5
+    # Приветственный текст
+    font_size = 30
     try:
-        title_font = ImageFont.truetype("arial.ttf", 48)
+        font = ImageFont.truetype("arial.ttf", font_size)
     except IOError:
-        title_font = ImageFont.load_default()
+        font = ImageFont.load_default()
 
-    num_images = len(image_files)
-    cols, rows = calculate_grid(num_images)
+    # Определение размера коллажа
+    num_images = len(images)
+    cols = int(num_images ** 0.5)  # Количество колонок
+    rows = (num_images + cols - 1) // cols  # Количество строк
 
+    collage_width = cols * cell_size + (cols + 1) * border_size
+    collage_height = rows * cell_size + (rows + 1) * border_size + font_size + border_size
 
-    collage_width = cols * (cell_size + border_width) + border_width
-    collage_height = rows * (cell_size + border_width) + border_width + title_font.getsize(title_text)[1]
-
+    # Создание фона коллажа
     collage = Image.new('RGB', (collage_width, collage_height), color='grey')
     draw = ImageDraw.Draw(collage)
 
-    # Центрирование заголовка
-    title_x, title_y = center_text(draw, title_text, title_font, collage_width, title_font.getsize(title_text)[1])
-    draw.text((title_x, title_y), title_text, font=title_font, fill="black")
+    # Добавление заголовка
+    text_width, text_height = draw.textbbox((0, 0), title_text, font=font)[2:4]
+    draw.text(((collage_width - text_width) / 2, border_size), title_text, fill="black", font=font)
 
-    #  добавление изображений 
+    # Обработка изображений
+    x_offset = border_size
+    y_offset = border_size + font_size + border_size
 
-    collage.save(output_filename, "JPEG")
-    print(f"Коллаж сохранен в файл: {output_filename}")
+    for img_path in images:
+        img = Image.open(img_path)
+
+        # Масштабируем и обрезаем изображение
+        img = ImageOps.fit(img, (cell_size, cell_size), Image.LANCZOS)
+
+        # Вставка изображения на коллаж
+        collage.paste(img, (x_offset, y_offset))
+
+        # Переход к следующей позиции
+        x_offset += cell_size + border_size
+
+        if x_offset + cell_size > collage_width:  # Переход на следующую строку
+            x_offset = border_size
+            y_offset += cell_size + border_size
+
+    # Сохранение коллажа
+    collage.save(output_file)
+    print(f"Коллаж сохранён в файл: {output_file}")
 
 
 if __name__ == "__main__":
+    # Создание окна для выбора файлов
+    Tk().withdraw()  # Скрыть главное окно
+    input_folder = askdirectory(title="Выберите папку с изображениями")
+    
+    if not input_folder:
+        print("Ошибка: Папка не выбрана.")
+    else:
+        # Выбор изображений
+        images = askopenfilenames(title="Выберите изображения", initialdir=input_folder,
+                                   filetypes=[("Image files", "*.jpg;*.jpeg;*.png")])
 
-    image_directory = "images" # Ваш путь файла
-    output_file = "collage.jpg" # Ваше имя выходного файла
-    collage_title = "Мой коллаж" # Ваш загаловок
+        # Установка имени выходного файла
+        output_file = os.path.join(input_folder, "collage.jpg")  # Имя выходного файла
 
-    try:
-        create_collage(image_directory, output_file, collage_title)
-    except (FileNotFoundError, ValueError) as e:
-        print(f"Ошибка: {e}")
+        # Заголовок
+        title_text = "Мой Коллаж"  # Заголовок
+        create_collage(images, output_file, title_text)
 
